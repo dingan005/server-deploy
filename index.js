@@ -2,12 +2,13 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const UserModel = require('./models/Users');
+require('dotenv').config(); // Load environment variables
 
 const app = express();
 
-// ✅ Fix CORS to allow only frontend deployment
+// ✅ CORS Configuration
 app.use(cors({
-    origin: "https://client-deploy-7i9goie91-dimal-thomas-projects.vercel.app", // Change this to match your frontend
+    origin: process.env.FRONTEND_URL || "https://client-deploy-7i9goie91-dimal-thomas-projects.vercel.app",
     methods: "GET,POST,PUT,DELETE",
     allowedHeaders: "Content-Type",
     credentials: true
@@ -16,14 +17,27 @@ app.use(cors({
 app.use(express.json());
 
 // ✅ MongoDB Connection
-mongoose.connect("mongodb+srv://root:12345@cluster-1.wf9i7.mongodb.net/deploy?retryWrites=true&w=majority&appName=Cluster-1", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => console.log("MongoDB connected"))
-.catch(err => console.log("Error connecting to MongoDB:", err));
+async function connectDB() {
+    try {
+        await mongoose.connect(process.env.MONGO_URI || "mongodb+srv://root:12345@cluster-1.wf9i7.mongodb.net/deploy?retryWrites=true&w=majority&appName=Cluster-1", {
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        });
+        console.log("✅ MongoDB Connected");
+    } catch (error) {
+        console.error("❌ MongoDB Connection Error:", error.message);
+        process.exit(1);
+    }
+}
+connectDB(); // Connect to DB
+
+// ✅ Test Route
+app.get('/', (req, res) => {
+    res.send("🚀 Server is running on Vercel!");
+});
 
 // ✅ GET all users
-app.get('/', async (req, res) => {
+app.get('/users', async (req, res) => {
     try {
         const users = await UserModel.find({});
         res.json(users);
@@ -33,7 +47,7 @@ app.get('/', async (req, res) => {
 });
 
 // ✅ GET a single user by ID
-app.get('/getUser/:id', async (req, res) => {
+app.get('/users/:id', async (req, res) => {
     try {
         const user = await UserModel.findById(req.params.id);
         if (!user) return res.status(404).json({ error: "User not found" });
@@ -43,17 +57,23 @@ app.get('/getUser/:id', async (req, res) => {
     }
 });
 
+// ✅ CREATE a new user
+app.post('/users', async (req, res) => {
+    try {
+        const newUser = await UserModel.create(req.body);
+        res.json(newUser);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ✅ UPDATE user by ID
-app.put('/updateUser/:id', async (req, res) => {
+app.put('/users/:id', async (req, res) => {
     try {
         const updatedUser = await UserModel.findByIdAndUpdate(
             req.params.id,
-            {
-                name: req.body.name,
-                email: req.body.email,
-                age: req.body.age
-            },
-            { new: true } // Returns updated user
+            { name: req.body.name, email: req.body.email, age: req.body.age },
+            { new: true }
         );
         if (!updatedUser) return res.status(404).json({ error: "User not found" });
         res.json(updatedUser);
@@ -63,7 +83,7 @@ app.put('/updateUser/:id', async (req, res) => {
 });
 
 // ✅ DELETE user by ID
-app.delete('/deleteUser/:id', async (req, res) => {
+app.delete('/users/:id', async (req, res) => {
     try {
         const deletedUser = await UserModel.findByIdAndDelete(req.params.id);
         if (!deletedUser) return res.status(404).json({ error: "User not found" });
@@ -73,16 +93,5 @@ app.delete('/deleteUser/:id', async (req, res) => {
     }
 });
 
-// ✅ CREATE a new user
-app.post('/createUser', async (req, res) => {
-    try {
-        const newUser = await UserModel.create(req.body);
-        res.json(newUser);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ✅ Start the server
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// ✅ Export for Vercel
+module.exports = app;
